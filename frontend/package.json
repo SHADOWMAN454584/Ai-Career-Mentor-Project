@@ -1,0 +1,9 @@
+{
+  "name": "ai-career-mentor-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {"dev": "vite", "build": "vite", "preview": "vite preview"},
+  "dependencies": {"@vitejs/plugin-react": "latest", "@tailwindcss/vite": "latest", "vite": "latest", "react": "latest", "react-dom": "latest", "recharts": "latest", "tailwindcss": "latest"},
+  "devDependencies": {}
+}
