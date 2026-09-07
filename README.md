@@ -17,7 +17,7 @@ The API documentation is at `http://localhost:8000/docs`.
 ## LLM provider options
 
 - **Gemini:** set `LLM_PRIMARY=gemini`, `GEMINI_API_KEY`, and optionally `GEMINI_MODEL`.
-- **Any OpenAI-compatible provider:** set `LLM_PRIMARY=openai_compatible`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL`. This supports OpenRouter, Together, and compatible local gateways.
+- **Any OpenAI-compatible provider:** set `LLM_PRIMARY=openai_compatible`, `API_KEY` (or `OPENAI_API_KEY`), `OPENAI_BASE_URL`, and `OPENAI_MODEL`. For OpenRouter, use `https://openrouter.ai/api/v1` as the base URL. This also supports Together and compatible local gateways.
 
 When `LLM_FALLBACK_ENABLED=true`, the other configured provider is used after a provider failure. If no key is configured, the app uses deterministic demo content and labels it as such.
 

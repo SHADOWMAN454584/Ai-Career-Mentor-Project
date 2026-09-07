@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .catalog import ALIASES, COURSES, PREREQUISITES, ROLES
 from .config import settings
+from .llm import reason_about_profile
 from .models import AnalysisJob, AnalysisResult, CandidateProfile, Resume
 
 KNOWN_SKILLS = sorted({skill for role in ROLES.values() for skill in role} | set(ALIASES) | {"java", "c++", "tensorflow", "numpy", "communication", "projects", "internship"})
@@ -148,9 +149,20 @@ def run_analysis(db: Session, job: AnalysisJob) -> AnalysisResult:
         resume.raw_text = extract_text(resume.file_path)
         parsed = parse_resume(resume.raw_text)
         save_profile(db, resume, parsed)
-        gaps = detect_gaps(parsed["skills"], job.target_role)
-        probability, factors = readiness(parsed)
-        result = AnalysisResult(job_id=job.id, user_id=job.user_id, role_scores=role_scores(parsed["skills"]), skill_gaps=gaps, courses=recommend_courses(gaps), placement_probability=probability, shap_factors=factors, roadmap=build_roadmap(gaps, job.timeline_weeks))
+        reasoning = reason_about_profile(parsed, job.target_role, ROLES[job.target_role], job.timeline_weeks)
+        if reasoning:
+            gaps = reasoning.skill_gaps
+            probability, factors, roadmap = reasoning.placement_probability, reasoning.shap_factors, reasoning.roadmap
+            model_version = f"llm-{reasoning.provider}"
+            for week in roadmap:
+                for task in week["tasks"]:
+                    task["task_id"] = str(uuid4())
+        else:
+            gaps = detect_gaps(parsed["skills"], job.target_role)
+            probability, factors = readiness(parsed)
+            roadmap = build_roadmap(gaps, job.timeline_weeks)
+            model_version = "demo-readiness-v1"
+        result = AnalysisResult(job_id=job.id, user_id=job.user_id, role_scores=role_scores(parsed["skills"]), skill_gaps=gaps, courses=recommend_courses(gaps), placement_probability=probability, shap_factors=factors, roadmap=roadmap, model_version=model_version)
         db.add(result)
         job.status, job.completed_at = "completed", datetime.utcnow()
         db.commit(); db.refresh(result)
