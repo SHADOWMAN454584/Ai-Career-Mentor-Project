@@ -137,7 +137,8 @@ def interview_session(role_name: str = "Machine Learning Engineer", user: User =
     generated = generate_interview(role_name, profile.skills)
     session = InterviewSession(user_id=user.id, role_name=role_name, questions=generated.questions, provider=generated.provider)
     db.add(session); db.commit(); db.refresh(session)
-    return {"id": session.id, "role_name": session.role_name, "questions": session.questions, "provider": session.provider, "scoring_note": "Answer scores are a lexical similarity heuristic, not a complete assessment."}
+    public_questions = [{key: value for key, value in question.items() if key != "model_answer"} for question in session.questions]
+    return {"id": session.id, "role_name": session.role_name, "questions": public_questions, "provider": session.provider, "scoring_note": "Answer scores are a lexical similarity heuristic, not a complete assessment."}
 
 
 @app.post("/interviews/{session_id}/answer")
