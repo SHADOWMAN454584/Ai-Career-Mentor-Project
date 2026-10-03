@@ -177,6 +177,7 @@ def update_task(task_id: str, payload: RoadmapTaskUpdate, user: User = Depends(c
 @app.get("/dashboard/progress")
 def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db)):
     result = latest_result(db, user.id)
+    job = db.get(AnalysisJob, result.job_id)
     task_list = [task for week in result.roadmap for task in week["tasks"]]
     complete = sum(1 for task in task_list if task["completed"])
-    return {"placement_probability": result.placement_probability, "role_scores": result.role_scores, "skill_radar": [{"skill": item["skill"], "value": round((1 - item["similarity"]) * 100, 1)} for item in result.skill_gaps], "roadmap_completion": round(100 * complete / max(1, len(task_list)), 1), "history": [{"date": result.created_at.date().isoformat(), "placement_probability": result.placement_probability}]}
+    return {"placement_probability": result.placement_probability, "role_scores": result.role_scores, "skill_radar": [{"skill": item["skill"], "value": round((1 - item["similarity"]) * 100, 1)} for item in result.skill_gaps], "roadmap_completion": round(100 * complete / max(1, len(task_list)), 1), "history": [{"date": result.created_at.date().isoformat(), "placement_probability": result.placement_probability}], "result": {**serialize_result(result), "target_role": job.target_role if job else None}}
