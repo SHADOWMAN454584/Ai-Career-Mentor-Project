@@ -130,6 +130,8 @@ def courses(user: User = Depends(current_user), db: Session = Depends(get_db)):
 
 @app.post("/interviews/session")
 def interview_session(role_name: str = "Machine Learning Engineer", user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if role_name not in ROLES:
+        raise HTTPException(status_code=422, detail="Choose a supported role from the role catalog")
     profile = db.scalar(select(CandidateProfile).where(CandidateProfile.user_id == user.id).order_by(CandidateProfile.extracted_at.desc()))
     if not profile: raise HTTPException(status_code=404, detail="Run analysis first")
     generated = generate_interview(role_name, profile.skills)
