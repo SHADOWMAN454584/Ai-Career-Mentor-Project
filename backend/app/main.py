@@ -152,7 +152,7 @@ def submit_answer(session_id: str, payload: AnswerRequest, user: User = Depends(
     answers = [item for item in answers if item["question_index"] != payload.question_index]
     answers.append({"question_index": payload.question_index, "answer": payload.answer, "score": score})
     session.answers = answers; db.commit()
-    return {"score": score, "model_answer": question["model_answer"], "note": "Similarity is a rough proxy; review clarity and correctness separately."}
+    return {"score": score, "note": "Similarity is a rough proxy; review clarity and correctness separately."}
 
 
 @app.get("/roadmap")
