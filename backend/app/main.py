@@ -1,9 +1,8 @@
 import logging
-import shutil
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile, status
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,13 +11,15 @@ from .config import settings
 from .database import Base, SessionLocal, engine, get_db
 from .llm import generate_interview
 from .models import AnalysisJob, AnalysisResult, CandidateProfile, InterviewSession, Resume, User
-from .schemas import AnalysisRequest, AnswerRequest, JobStatusResponse, LoginRequest, RoadmapTaskUpdate, TokenResponse
-from .security import create_token, current_user, hash_password
+from .schemas import AnalysisRequest, AnswerRequest, JobStatusResponse, RoadmapTaskUpdate
+from .security import current_user, hash_password
+from .routers.auth import router as auth_router
 from .services import answer_similarity, detect_gaps, role_scores, run_analysis
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 app = FastAPI(title="AI Career Mentor API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=[item.strip() for item in settings.cors_origins.split(",")], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.include_router(auth_router)
 
 
 @app.on_event("startup")
@@ -46,18 +47,6 @@ def latest_result(db: Session, user_id: int) -> AnalysisResult:
 
 @app.get("/health")
 def health(): return {"status": "ok", "service": "ai-career-mentor"}
-
-
-@app.post("/auth/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.email == payload.email.lower().strip()))
-    if not user or user.password_hash != hash_password(payload.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-    return TokenResponse(access_token=create_token(user))
-
-
-@app.get("/auth/demo-credentials")
-def demo_credentials(): return {"email": settings.demo_email, "password": settings.demo_password}
 
 
 @app.post("/resumes/upload")
