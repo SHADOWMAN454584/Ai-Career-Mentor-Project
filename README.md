@@ -1,6 +1,8 @@
-# AI Career Mentor
+# Campus2Career
 
-AI Career Mentor turns a student's resume into a structured profile, skill-gap analysis, placement-readiness estimate, role and course recommendations, mock interview practice, and a weekly learning roadmap.
+> **Bridge the gap from degree to dream job.**
+
+Campus2Career turns a student's resume and academic profile into a structured career plan: skill-gap analysis, placement-readiness estimates, role and course recommendations, AI mock interview practice, and a weekly learning roadmap.
 
 ## Quick start
 

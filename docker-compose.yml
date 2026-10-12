@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    container_name: campus2career_db
     environment:
       POSTGRES_DB: career_mentor
       POSTGRES_USER: career_mentor
@@ -9,14 +10,49 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U career_mentor -d career_mentor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   backend:
     build: ./backend
+    container_name: campus2career_backend
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://career_mentor:career_mentor@db:5432/career_mentor
+      CORS_ORIGINS: http://localhost:5173,http://localhost:80,http://127.0.0.1:5173
     ports:
       - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./ml_models:/app/ml_models
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    container_name: campus2career_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
 volumes:
   postgres_data:
