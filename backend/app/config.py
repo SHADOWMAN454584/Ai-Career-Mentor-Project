@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     max_upload_mb: int = 5
     llm_primary: str = "gemini"
-    llm_fallback_enabled: bool = True
+    llm_fallback_enabled: bool = False
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
     openai_api_key: str | None = None
     api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"

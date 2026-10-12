@@ -1,2 +1,2 @@
-"""AI Career Mentor backend package."""
+"""Campus2Career backend package."""
 

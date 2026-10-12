@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -9,9 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..catalog import ROLES
-from ..llm import reason_about_profile
+from ..llm import extract_resume_with_gemini, reason_about_profile
 from ..models import AnalysisJob, AnalysisResult, CandidateProfile, Resume
 from .skill_analysis import (
+    KNOWN_SKILLS,
     build_roadmap,
     detect_gaps,
     normalize_skill,
@@ -20,6 +22,8 @@ from .skill_analysis import (
     role_scores,
     similarity,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "answer_similarity",
@@ -36,41 +40,153 @@ __all__ = [
 
 
 def extract_text(path: str) -> str:
+    """Robust multi-engine document text extraction for PDF and DOCX files."""
     source = Path(path)
-    try:
-        if source.suffix.lower() == ".pdf":
+    if not source.exists():
+        raise HTTPException(status_code=404, detail=f"Resume file not found on disk: {source.name}")
+
+    suffix = source.suffix.lower()
+
+    if suffix == ".pdf":
+        extracted_text = ""
+
+        # Primary engine: PyMuPDF (fitz)
+        try:
             import fitz
             with fitz.open(source) as pdf:
-                return "\n".join(page.get_text() for page in pdf)
-        if source.suffix.lower() == ".docx":
+                pages_text = []
+                for page in pdf:
+                    ptxt = page.get_text()
+                    if ptxt:
+                        pages_text.append(ptxt)
+                extracted_text = "\n".join(pages_text).strip()
+        except Exception as fitz_err:
+            logger.warning("PyMuPDF failed to parse %s: %s", source.name, fitz_err)
+
+        # Fallback engine 1: pypdf
+        if not extracted_text:
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(str(source))
+                pages_text = []
+                for page in reader.pages:
+                    ptxt = page.extract_text()
+                    if ptxt:
+                        pages_text.append(ptxt)
+                extracted_text = "\n".join(pages_text).strip()
+            except Exception as pypdf_err:
+                logger.warning("pypdf fallback failed to parse %s: %s", source.name, pypdf_err)
+
+        # Fallback engine 2: pdfplumber
+        if not extracted_text:
+            try:
+                import pdfplumber
+                with pdfplumber.open(source) as pdf:
+                    pages_text = []
+                    for page in pdf.pages:
+                        ptxt = page.extract_text()
+                        if ptxt:
+                            pages_text.append(ptxt)
+                    extracted_text = "\n".join(pages_text).strip()
+            except Exception as plumb_err:
+                logger.warning("pdfplumber fallback failed to parse %s: %s", source.name, plumb_err)
+
+        # Validate that actual character text was ingested
+        cleaned = re.sub(r"\s+", " ", extracted_text).strip()
+        if not cleaned or len(cleaned) < 15:
+            raise HTTPException(
+                status_code=422,
+                detail="Unable to extract text from the PDF. The file may be empty, image-only (scanned), or encrypted. Please upload a standard text-based PDF or DOCX resume.",
+            )
+        return extracted_text
+
+    if suffix == ".docx":
+        try:
             from docx import Document
-            return "\n".join(paragraph.text for paragraph in Document(source).paragraphs)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Could not read resume: {exc}") from exc
+            doc = Document(source)
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            paragraphs.append(cell.text.strip())
+            extracted_text = "\n".join(paragraphs).strip()
+            if not extracted_text:
+                raise ValueError("DOCX document has no readable text")
+            return extracted_text
+        except Exception as docx_err:
+            raise HTTPException(status_code=422, detail=f"Could not read DOCX document: {docx_err}") from docx_err
+
     raise HTTPException(status_code=415, detail="Only PDF and DOCX resumes are supported")
 
 
-def parse_resume(raw_text: str) -> dict[str, Any]:
+def _parse_resume_regex(raw_text: str) -> dict[str, Any]:
+    """Deterministic catalog-matching and regex extraction for resumes."""
     text = re.sub(r"[\t ]+", " ", raw_text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     lower = text.lower()
-    from .skill_analysis import KNOWN_SKILLS
 
     skills = sorted({normalize_skill(skill) for skill in KNOWN_SKILLS if re.search(rf"(?<!\w){re.escape(skill)}(?!\w)", lower)})
     email = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", text)
     phone = re.search(r"(?:\+?\d{1,3}[-. ]?)?(?:\(?\d{3}\)?[-. ]?){2}\d{4}", text)
     cgpa = re.search(r"(?:cgpa|gpa)\s*[:=-]?\s*(\d(?:\.\d{1,2})?)", lower)
-    year = re.search(r"(?:graduat(?:ion|ing)|batch)\s*(?:year)?\s*[:=-]?\s*(20\d{2})", lower)
+    year = re.search(r"(?:graduat(?:ion|ing)|batch|class\s*of)?\s*[:=-]?\s*(20[12]\d)\b", lower)
     experience_years = re.search(r"(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\s+(?:of\s+)?experience", lower)
-    projects = re.findall(r"(?:project|built|developed)\s*[:\-]?\s*([^\n.]{4,100})", text, flags=re.I)
-    degree_match = re.search(r"\b(B\.?Tech|M\.?Tech|BCA|MCA|B\.?Sc|M\.?Sc|Bachelor[^\n,]*|Master[^\n,]*)", text, flags=re.I)
+    projects = re.findall(r"(?:projects?|built|developed)\s*[:\-]?\s*([^\n.]{4,100})", text, flags=re.I)
+    degree_match = re.search(r"\b(B\.?Tech[^\n,]*|M\.?Tech[^\n,]*|BCA|MCA|B\.?Sc|M\.?Sc|Bachelor[^\n,]*|Master[^\n,]*)", text, flags=re.I)
+
     return {
         "skills": skills,
-        "education": {"degree": degree_match.group(0) if degree_match else None, "graduation_year": year.group(1) if year else None, "cgpa": float(cgpa.group(1)) if cgpa else None},
+        "education": {
+            "degree": degree_match.group(0).strip() if degree_match else None,
+            "graduation_year": year.group(1) if year else None,
+            "cgpa": float(cgpa.group(1)) if cgpa else None,
+        },
         "experience": {"years": float(experience_years.group(1)) if experience_years else 0.0},
-        "projects": projects[:8],
+        "projects": [p.strip() for p in projects[:8]],
         "contacts": {"email": email.group(0) if email else None, "phone": phone.group(0) if phone else None},
     }
+
+
+def parse_resume(raw_text: str) -> dict[str, Any]:
+    """High-fidelity resume parsing combining Gemini intelligence with offline deterministic matching."""
+    # 1. Deterministic baseline
+    local_parsed = _parse_resume_regex(raw_text)
+
+    # 2. Intelligent Gemini parsing
+    gemini_parsed = extract_resume_with_gemini(raw_text)
+
+    if gemini_parsed:
+        # Merge skills: Gemini skills normalized + detected known catalog skills
+        combined_skills = set(local_parsed.get("skills", []))
+        for skill in gemini_parsed.get("skills", []):
+            norm = normalize_skill(skill)
+            if norm:
+                combined_skills.add(norm)
+
+        # Merge education
+        education = gemini_parsed.get("education") or {}
+        if not education.get("cgpa") and local_parsed["education"].get("cgpa"):
+            education["cgpa"] = local_parsed["education"]["cgpa"]
+        if not education.get("graduation_year") and local_parsed["education"].get("graduation_year"):
+            education["graduation_year"] = local_parsed["education"]["graduation_year"]
+        if not education.get("degree") and local_parsed["education"].get("degree"):
+            education["degree"] = local_parsed["education"]["degree"]
+
+        # Merge projects and contacts
+        projects = gemini_parsed.get("projects") or local_parsed.get("projects", [])
+        contacts = gemini_parsed.get("contacts") or local_parsed.get("contacts", {})
+        experience = gemini_parsed.get("experience") or local_parsed.get("experience", {"years": 0.0})
+
+        return {
+            "skills": sorted(combined_skills),
+            "education": education,
+            "experience": experience,
+            "projects": projects[:8],
+            "contacts": contacts,
+        }
+
+    return local_parsed
 
 
 def save_profile(db: Session, resume: Resume, parsed: dict[str, Any]) -> CandidateProfile:
