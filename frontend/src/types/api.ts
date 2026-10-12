@@ -41,12 +41,18 @@ export interface RoadmapWeek {
   tasks: RoadmapTask[];
 }
 
+export interface ShapFactor {
+  feature: string;
+  impact: number;
+  direction: 'up' | 'down';
+}
+
 export interface AnalysisResult {
   role_scores: RoleScore[];
   skill_gaps: SkillGap[];
   courses: CourseGroup[];
   placement_probability: number;
-  shap_factors: Record<string, unknown>[];
+  shap_factors: ShapFactor[];
   roadmap: RoadmapWeek[];
   model_version: string;
   disclaimer: string;
@@ -88,4 +94,29 @@ export interface InterviewSession {
 export interface InterviewAnswerResult {
   score: number;
   note: string;
+}
+
+export interface PlacementPredictRequest {
+  cgpa: number;
+  skill_count: number;
+  internship_count: number;
+  project_count: number;
+  certification_count: number;
+  branch: string;
+}
+
+export interface PlacementPredictResponse {
+  placement_probability: number;
+  prediction: number;
+  model_version: string;
+  shap_factors: ShapFactor[];
+  evaluated_features: Record<string, unknown>;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'mentor';
+  text: string;
+  timestamp: string;
+  isStreaming?: boolean;
 }
