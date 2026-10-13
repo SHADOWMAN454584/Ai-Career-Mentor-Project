@@ -29,6 +29,17 @@ class Resume(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class ResumeDraft(Base):
+    __tablename__ = "resume_drafts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(160), default="My Resume")
+    template: Mapped[str] = mapped_column(String(40), default="classic")
+    content: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class CandidateProfile(Base):
     __tablename__ = "candidate_profiles"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

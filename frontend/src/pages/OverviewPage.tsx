@@ -55,6 +55,7 @@ export function OverviewPage({
 
       <ErrorBoundary fallbackTitle="Workspace Overview Error">
         <Overview
+          selectedRole={selectedRole}
           result={result}
           dashboard={dashboard}
           onNavigateSkills={() => navigate('/skills')}

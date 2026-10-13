@@ -18,6 +18,7 @@ from .rate_limiter import limiter
 from .routers.auth import router as auth_router
 from .routers.mentor import router as mentor_router
 from .routers.placement import router as placement_router
+from .routers.resume_builder import router as resume_builder_router
 from .routers.resumes import router as resumes_router
 from .routers.skills import router as skills_router
 from .security import hash_password
@@ -118,6 +119,7 @@ app.include_router(resumes_router)
 app.include_router(skills_router)
 app.include_router(mentor_router)
 app.include_router(placement_router)
+app.include_router(resume_builder_router)
 
 
 @app.get("/health", tags=["system"])

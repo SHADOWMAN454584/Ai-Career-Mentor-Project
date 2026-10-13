@@ -213,6 +213,31 @@ Use the following demo credentials if the demo account is enabled and the creden
 
 Use these credentials only for local development. Change or disable demo credentials before deploying the application publicly.
 
+## Resume Builder
+
+After signing in, open **Resume Builder** from the Workspace navigation or visit `http://localhost:5173/resume-builder`.
+
+The builder supports:
+
+- Personal details, target role, summary, skills, education, projects, experience, certifications, achievements, and activities
+- Add, remove, and reorder repeatable education, project, experience, and certification entries
+- Factual AI-assisted summary, project, experience, and skill wording through the configured Gemini provider
+- Deterministic demo wording when no AI credential is configured; demo output is labeled in the interface
+- Authenticated draft save and restore
+- Live ATS-friendly Classic and Modern previews
+- Searchable multi-page PDF export from the current edited content
+
+The resume builder API is authenticated and is available under `/resume-builder`:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/resume-builder/draft` | Load the current user's saved draft |
+| `PUT` | `/resume-builder/draft` | Create or update the current user's draft |
+| `POST` | `/resume-builder/generate` | Generate or improve one resume section |
+| `POST` | `/resume-builder/pdf` | Export the submitted current content as a PDF |
+
+Run `alembic upgrade head` after installing backend dependencies to create the `resume_drafts` table.
+
 ## Language Model Configuration
 
 Campus2Career supports configurable language model providers. The application can use an external provider for generated career insights or fall back to deterministic demo content when no API key is configured.

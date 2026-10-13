@@ -4,6 +4,7 @@ import { AnalysisResult, DashboardProgress } from '../../types/api';
 import { EmptyState } from '../common/EmptyState';
 
 interface OverviewProps {
+  selectedRole: string;
   result: AnalysisResult | null;
   dashboard: DashboardProgress | null;
   onNavigateSkills: () => void;
@@ -13,6 +14,7 @@ interface OverviewProps {
 }
 
 export function Overview({
+  selectedRole,
   result,
   dashboard,
   onNavigateSkills,
@@ -84,8 +86,10 @@ export function Overview({
       <section className="signal-grid">
         <article className="signal-block">
           <span className="signal-number">01</span>
-          <p className="overline">Strongest role match</p>
-          <h3>{topRole?.role_name || 'Not evaluated'}</h3>
+          <p className="overline">Target role</p>
+          <h3>{selectedRole}</h3>
+          <p className="overline">Highest resume match across roles</p>
+          <strong>{topRole?.role_name || 'Not evaluated'}</strong>
           <strong className="signal-value">{topRole?.match_score || 0}% match</strong>
           <p className="muted">
             {topRole?.contributing_skills?.slice(0, 3).join(', ') || 'Run analysis to see supporting skills.'}
