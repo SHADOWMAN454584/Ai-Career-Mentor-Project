@@ -9,6 +9,7 @@ import { OverviewPage } from './pages/OverviewPage';
 import { SkillsPage } from './pages/SkillsPage';
 import { MentorPage } from './pages/MentorPage';
 import { PlacementPage } from './pages/PlacementPage';
+import { ResumeBuilderPage } from './pages/ResumeBuilderPage';
 
 export function App() {
   const navigate = useNavigate();
@@ -238,6 +239,28 @@ export function App() {
               onSignOut={handleSignOut}
             >
               <MentorPage selectedRole={selectedRole} />
+            </AppShell>
+          ) : (
+            <Navigate to="/auth" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/resume-builder"
+        element={
+          loggedIn ? (
+            <AppShell
+              title="Resume Builder"
+              subtitle="Demo Student"
+              selectedRole={selectedRole}
+              weeks={weeks}
+              statusMessage="Resume studio ready"
+              theme={theme}
+              onToggleTheme={toggleTheme}
+              onSignOut={handleSignOut}
+            >
+              <ResumeBuilderPage targetRole={selectedRole} />
             </AppShell>
           ) : (
             <Navigate to="/auth" replace />
