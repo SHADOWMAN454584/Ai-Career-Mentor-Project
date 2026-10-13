@@ -120,3 +120,67 @@ export interface ChatMessage {
   timestamp: string;
   isStreaming?: boolean;
 }
+
+export interface ResumePersonalInfo {
+  full_name: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedin_url: string;
+  github_url: string;
+  portfolio_url: string;
+}
+
+export interface ResumeEducationItem {
+  institution: string;
+  degree: string;
+  specialization: string;
+  dates: string;
+  grade: string;
+  coursework: string;
+}
+
+export interface ResumeProjectItem {
+  name: string;
+  description: string;
+  technologies: string[];
+  contributions: string[];
+  results: string[];
+}
+
+export interface ResumeExperienceItem {
+  company: string;
+  title: string;
+  location: string;
+  dates: string;
+  bullets: string[];
+}
+
+export interface ResumeCertificationItem {
+  name: string;
+  issuer: string;
+  date: string;
+}
+
+export interface ResumeContent {
+  personal: ResumePersonalInfo;
+  target_role: string;
+  summary: string;
+  education: ResumeEducationItem[];
+  skills: string[];
+  projects: ResumeProjectItem[];
+  experience: ResumeExperienceItem[];
+  certifications: ResumeCertificationItem[];
+  achievements: string[];
+  activities: string[];
+  job_description: string;
+}
+
+export interface ResumeDraft {
+  id: string;
+  title: string;
+  template: 'classic' | 'modern';
+  content: ResumeContent;
+  created_at: string;
+  updated_at: string;
+}
