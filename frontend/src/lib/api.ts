@@ -19,6 +19,22 @@ export function removeToken(): void {
   localStorage.removeItem('career_token');
 }
 
+export async function downloadResumePdf(payload: unknown): Promise<Blob> {
+  const token = getToken();
+  const response = await fetch(`${API_BASE}/resume-builder/pdf`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error('Could not export the resume PDF. Please check the resume details and try again.');
+  }
+  return response.blob();
+}
+
 export async function request<T>(
   path: string,
   options: RequestInit = {},
