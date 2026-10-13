@@ -37,6 +37,90 @@ class CandidateProfileResponse(BaseModel):
     extracted_at: datetime
 
 
+class ResumePersonalInfo(BaseModel):
+    full_name: str = Field(default="", max_length=120)
+    email: str = Field(default="", max_length=255)
+    phone: str = Field(default="", max_length=60)
+    location: str = Field(default="", max_length=160)
+    linkedin_url: str = Field(default="", max_length=500)
+    github_url: str = Field(default="", max_length=500)
+    portfolio_url: str = Field(default="", max_length=500)
+
+
+class ResumeEducationItem(BaseModel):
+    institution: str = Field(default="", max_length=180)
+    degree: str = Field(default="", max_length=160)
+    specialization: str = Field(default="", max_length=160)
+    dates: str = Field(default="", max_length=80)
+    grade: str = Field(default="", max_length=80)
+    coursework: str = Field(default="", max_length=500)
+
+
+class ResumeProjectItem(BaseModel):
+    name: str = Field(default="", max_length=160)
+    description: str = Field(default="", max_length=2000)
+    technologies: list[str] = Field(default_factory=list, max_length=30)
+    contributions: list[str] = Field(default_factory=list, max_length=20)
+    results: list[str] = Field(default_factory=list, max_length=20)
+
+
+class ResumeExperienceItem(BaseModel):
+    company: str = Field(default="", max_length=180)
+    title: str = Field(default="", max_length=160)
+    location: str = Field(default="", max_length=160)
+    dates: str = Field(default="", max_length=80)
+    bullets: list[str] = Field(default_factory=list, max_length=20)
+
+
+class ResumeCertificationItem(BaseModel):
+    name: str = Field(default="", max_length=180)
+    issuer: str = Field(default="", max_length=160)
+    date: str = Field(default="", max_length=80)
+
+
+class ResumeContent(BaseModel):
+    personal: ResumePersonalInfo = Field(default_factory=ResumePersonalInfo)
+    target_role: str = Field(default="", max_length=160)
+    summary: str = Field(default="", max_length=3000)
+    education: list[ResumeEducationItem] = Field(default_factory=list, max_length=20)
+    skills: list[str] = Field(default_factory=list, max_length=100)
+    projects: list[ResumeProjectItem] = Field(default_factory=list, max_length=30)
+    experience: list[ResumeExperienceItem] = Field(default_factory=list, max_length=30)
+    certifications: list[ResumeCertificationItem] = Field(default_factory=list, max_length=30)
+    achievements: list[str] = Field(default_factory=list, max_length=30)
+    activities: list[str] = Field(default_factory=list, max_length=30)
+    job_description: str = Field(default="", max_length=10000)
+
+
+class ResumeDraftResponse(BaseModel):
+    id: str
+    title: str
+    template: str
+    content: ResumeContent
+    created_at: datetime
+    updated_at: datetime
+
+
+class ResumeDraftSaveRequest(BaseModel):
+    title: str = Field(default="My Resume", min_length=1, max_length=160)
+    template: Literal["classic", "modern"] = "classic"
+    content: ResumeContent
+
+
+class ResumeGenerationRequest(BaseModel):
+    section: Literal["summary", "project", "experience", "skills"]
+    content: dict[str, Any] = Field(default_factory=dict)
+    target_role: str = Field(default="", max_length=160)
+    job_description: str = Field(default="", max_length=10000)
+
+
+class ResumeGenerationResponse(BaseModel):
+    section: str
+    content: str | list[str]
+    provider: str
+    demo: bool
+
+
 # ---------------------------------------------------------
 # Skills Domain Schemas
 # ---------------------------------------------------------
