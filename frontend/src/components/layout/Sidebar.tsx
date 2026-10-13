@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CheckSquare, TrendingUp, Bot, LogOut } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, TrendingUp, Bot, FileText, LogOut } from 'lucide-react';
 
 interface SidebarProps {
   onSignOut: () => void;
@@ -12,6 +12,7 @@ export function Sidebar({ onSignOut }: SidebarProps) {
     { to: '/skills', label: 'Skills', hint: 'Close priority gaps', icon: CheckSquare },
     { to: '/placement', label: 'Placement', hint: 'ML readiness predictor', icon: TrendingUp },
     { to: '/mentor', label: 'AI Mentor', hint: 'Real-time chat & mock Q&A', icon: Bot },
+    { to: '/resume-builder', label: 'Resume Builder', hint: 'Edit, tailor & export', icon: FileText },
   ];
 
   return (
