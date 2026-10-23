@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Lightbulb, Send, Bot, User } from 'lucide-react';
+import { Lightbulb, Send, Bot, User, Square } from 'lucide-react';
 import { ChatMessage } from '../../types/api';
 import { streamMentorChat } from '../../lib/api';
 import { StreamingMessage } from './StreamingMessage';
@@ -8,18 +8,22 @@ interface MentorChatProps {
   targetRole: string;
 }
 
+function createWelcomeMessage(targetRole: string): ChatMessage {
+  return {
+    id: 'welcome',
+    sender: 'mentor',
+    text: `Hello! I'm your AI Career Mentor for **${targetRole}**. How can I help you prepare for campus placements, project reviews, or technical interviews today?`,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
 export function MentorChat({ targetRole }: MentorChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      sender: 'mentor',
-      text: `Hello! I'm your AI Career Mentor for **${targetRole}**. How can I help you prepare for campus placements, project reviews, or technical interviews today?`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [createWelcomeMessage(targetRole)]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [resumeContextUsed, setResumeContextUsed] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<(() => void) | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -29,15 +33,39 @@ export function MentorChat({ targetRole }: MentorChatProps) {
     scrollToBottom();
   }, [messages, isStreaming]);
 
+  useEffect(() => {
+    return () => {
+      abortRef.current?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    abortRef.current?.();
+    abortRef.current = null;
+    setIsStreaming(false);
+    setInput('');
+    setResumeContextUsed(null);
+    setMessages([createWelcomeMessage(targetRole)]);
+  }, [targetRole]);
+
   const quickPrompts = [
     `How do I stand out for ${targetRole} campus placements?`,
+    'What are my biggest skill gaps right now?',
     'How should I explain complex technical projects using STAR?',
     'What should I prioritize if I have 4 weeks before interviews?',
   ];
 
-  async function handleSend(textToSend?: string) {
+  function handleSend(textToSend?: string) {
     const query = (textToSend || input).trim();
     if (!query || isStreaming) return;
+
+    const history = messages
+      .filter((msg) => msg.id !== 'welcome' && msg.text.trim())
+      .slice(-8)
+      .map((msg) => ({
+        role: (msg.sender === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+        content: msg.text,
+      }));
 
     setInput('');
     const userMsgId = `user-${Date.now()}`;
@@ -51,9 +79,8 @@ export function MentorChat({ targetRole }: MentorChatProps) {
     ]);
 
     setIsStreaming(true);
-
-    await streamMentorChat(
-      { message: query, target_role: targetRole },
+    abortRef.current = streamMentorChat(
+      { message: query, target_role: targetRole, history },
       (chunk) => {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -62,6 +89,7 @@ export function MentorChat({ targetRole }: MentorChatProps) {
         );
       },
       () => {
+        abortRef.current = null;
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === mentorMsgId ? { ...msg, isStreaming: false } : msg
@@ -70,6 +98,7 @@ export function MentorChat({ targetRole }: MentorChatProps) {
         setIsStreaming(false);
       },
       (err) => {
+        abortRef.current = null;
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === mentorMsgId
@@ -82,7 +111,17 @@ export function MentorChat({ targetRole }: MentorChatProps) {
           )
         );
         setIsStreaming(false);
-      }
+      },
+      (meta) => setResumeContextUsed(Boolean(meta.resume_context))
+    );
+  }
+
+  function stopStreaming() {
+    abortRef.current?.();
+    abortRef.current = null;
+    setIsStreaming(false);
+    setMessages((prev) =>
+      prev.map((msg) => (msg.isStreaming ? { ...msg, isStreaming: false } : msg))
     );
   }
 
@@ -93,9 +132,18 @@ export function MentorChat({ targetRole }: MentorChatProps) {
           <p className="overline">Real-Time Mentorship</p>
           <h2>Interactive AI Guidance for {targetRole}</h2>
         </div>
-        <p className="muted">
-          Ask questions about interview strategies, project portfolio structuring, and skill gaps.
-        </p>
+        <div>
+          <p className="muted">
+            Ask questions about interview strategies, project portfolio structuring, and skill gaps.
+          </p>
+          {resumeContextUsed !== null && (
+            <p className={`chat-context-badge${resumeContextUsed ? '' : ' is-warning'}`}>
+              {resumeContextUsed
+                ? 'Grounded in your saved resume and analysis data.'
+                : 'No resume data found yet — advice will be general.'}
+            </p>
+          )}
+        </div>
       </div>
 
       <div
@@ -196,15 +244,27 @@ export function MentorChat({ targetRole }: MentorChatProps) {
           disabled={isStreaming}
           style={{ flex: 1 }}
         />
-        <button
-          className="primary-button"
-          type="submit"
-          disabled={!input.trim() || isStreaming}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-        >
-          <span>{isStreaming ? 'Streaming...' : 'Send'}</span>
-          <Send size={14} color="currentColor" aria-hidden="true" />
-        </button>
+        {isStreaming ? (
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={stopStreaming}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>Stop</span>
+            <Square size={12} color="currentColor" aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={!input.trim()}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>Send</span>
+            <Send size={14} color="currentColor" aria-hidden="true" />
+          </button>
+        )}
       </form>
     </section>
   );
