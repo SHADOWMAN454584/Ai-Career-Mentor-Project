@@ -21,7 +21,7 @@ Campus2Career addresses these needs through a structured workflow that connects 
 - **Course Recommendations** — Discover learning resources relevant to identified skill gaps and career objectives.
 - **Mock Interview Practice** — Practice interview questions and receive structured feedback to improve preparation.
 - **Personalized Learning Roadmaps** — Follow weekly learning plans with practical milestones and recommended topics.
-- **AI-Assisted Guidance** — Use configurable language model providers for career insights, explanations, and personalized recommendations.
+- **AI-Assisted Guidance** — Use configurable language model providers for resume-grounded mentor chat, career insights, explanations, and personalized recommendations.
 
 ## How It Works
 
@@ -222,6 +222,8 @@ The builder supports:
 - Personal details, target role, summary, skills, education, projects, experience, certifications, achievements, and activities
 - Add, remove, and reorder repeatable education, project, experience, and certification entries
 - Factual AI-assisted summary, project, experience, and skill wording through the configured Gemini provider
+- Review-before-apply suggestions with evidence warnings for every generated section
+- Separate “clean skills” and “suggest missing skills” actions, with unverified role suggestions the student must explicitly add
 - Deterministic demo wording when no AI credential is configured; demo output is labeled in the interface
 - Authenticated draft save and restore
 - Live ATS-friendly Classic and Modern previews
@@ -233,7 +235,8 @@ The resume builder API is authenticated and is available under `/resume-builder`
 |---|---|---|
 | `GET` | `/resume-builder/draft` | Load the current user's saved draft |
 | `PUT` | `/resume-builder/draft` | Create or update the current user's draft |
-| `POST` | `/resume-builder/generate` | Generate or improve one resume section |
+| `POST` | `/resume-builder/generate` | Generate or improve one resume section with warnings and project results |
+| `POST` | `/resume-builder/suggest-skills` | Suggest missing catalog skills for the target role without claiming the student has them |
 | `POST` | `/resume-builder/pdf` | Export the submitted current content as a PDF |
 
 Run `alembic upgrade head` after installing backend dependencies to create the `resume_drafts` table.
