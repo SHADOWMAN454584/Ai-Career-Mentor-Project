@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnalysisResult, DashboardProgress } from '../types/api';
 import { ResumePanel } from '../components/dashboard/ResumePanel';
@@ -31,10 +31,9 @@ export function OverviewPage({
   dashboard,
 }: OverviewPageProps) {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const triggerUploadClick = () => {
-    const input = document.querySelector('.file-picker input') as HTMLInputElement | null;
+    const input = document.getElementById('resume-file-input') as HTMLInputElement | null;
     input?.click();
   };
 

@@ -83,46 +83,58 @@ export async function request<T>(
   return body as T;
 }
 
+export interface MentorStreamMeta {
+  resume_context: boolean;
+  target_role: string;
+}
+
+export interface MentorChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 /**
  * Stream real-time mentor response via Server-Sent Events (SSE).
+ * Returns an abort function immediately so the caller can offer a stop button.
  */
-export async function streamMentorChat(
-  payload: { message: string; target_role: string; context?: string },
+export function streamMentorChat(
+  payload: { message: string; target_role: string; history?: MentorChatTurn[] },
   onChunk: (chunk: string) => void,
   onComplete: () => void,
-  onError: (err: Error) => void
-): Promise<() => void> {
+  onError: (err: Error) => void,
+  onMeta?: (meta: MentorStreamMeta) => void
+): () => void {
   const controller = new AbortController();
   const token = getToken();
 
-  try {
-    const response = await fetch(`${API_BASE}/mentor/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
+  (async () => {
+    try {
+      const response = await fetch(`${API_BASE}/mentor/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        removeToken();
-        window.location.href = '/auth';
+      if (!response.ok) {
+        if (response.status === 401) {
+          removeToken();
+          window.location.href = '/auth';
+        }
+        throw new Error(`Streaming failed with status: ${response.status}`);
       }
-      throw new Error(`Streaming failed with status: ${response.status}`);
-    }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('ReadableStream not supported by browser environment.');
-    }
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('ReadableStream not supported by browser environment.');
+      }
 
-    const decoder = new TextDecoder();
-    let buffer = '';
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-    (async () => {
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -144,7 +156,14 @@ export async function streamMentorChat(
 
             try {
               const parsed = JSON.parse(content);
-              if (parsed.chunk) {
+              if (parsed.meta) {
+                onMeta?.(parsed.meta as MentorStreamMeta);
+              }
+              if (typeof parsed.error === 'string') {
+                onError(new Error(parsed.error));
+                return;
+              }
+              if (typeof parsed.chunk === 'string') {
                 onChunk(parsed.chunk);
               }
             } catch {
@@ -158,10 +177,12 @@ export async function streamMentorChat(
           onError(err instanceof Error ? err : new Error(String(err)));
         }
       }
-    })();
-  } catch (err: unknown) {
-    onError(err instanceof Error ? err : new Error(String(err)));
-  }
+    } catch (err: unknown) {
+      if ((err as Error).name !== 'AbortError') {
+        onError(err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+  })();
 
   return () => controller.abort();
 }

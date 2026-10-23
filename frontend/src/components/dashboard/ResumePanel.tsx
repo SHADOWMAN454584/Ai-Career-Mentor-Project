@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ArrowRight, UploadCloud } from 'lucide-react';
+
+const ACCEPTED_EXTENSIONS = ['.pdf', '.docx'];
 
 const ROLES = [
   'Machine Learning Engineer',
@@ -36,6 +38,35 @@ export function ResumePanel({
   status,
 }: ResumePanelProps) {
   const isBusy = status.type === 'uploading' || status.type === 'processing';
+  const [isDragging, setIsDragging] = useState(false);
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isBusy) setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setIsDragging(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (isBusy) return;
+
+    const dropped = e.dataTransfer.files?.[0];
+    if (!dropped) return;
+    const name = dropped.name.toLowerCase();
+    if (ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext))) {
+      setFile(dropped);
+    }
+  }
 
   return (
     <section className="resume-panel">
@@ -80,18 +111,29 @@ export function ResumePanel({
 
         <div className="form-field">
           <label htmlFor="resume-file-input">Resume document</label>
-          <div className="file-picker-wrapper">
+          <div
+            className={`file-picker-wrapper${isDragging ? ' is-dragging' : ''}${isBusy ? ' is-disabled' : ''}`}
+            onDragEnter={handleDragOver}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <input
               type="file"
               id="resume-file-input"
               accept=".pdf,.docx"
               className="file-input-hidden"
+              disabled={isBusy}
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
             <label htmlFor="resume-file-input" className="file-picker-control">
               <UploadCloud size={16} color="currentColor" aria-hidden="true" style={{ flexShrink: 0 }} />
               <span className="file-picker-name">
-                {file ? file.name : 'Choose PDF or DOCX'}
+                {file
+                  ? file.name
+                  : isDragging
+                    ? 'Drop your resume here'
+                    : 'Drag & drop or choose PDF/DOCX'}
               </span>
             </label>
           </div>
