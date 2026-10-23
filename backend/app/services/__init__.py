@@ -25,6 +25,18 @@ from .skill_analysis import (
 
 logger = logging.getLogger(__name__)
 
+GENERIC_SKILL_TOKENS = {"projects", "internship"}
+PROJECT_HEADING_RE = re.compile(
+    r"^\s*(?:projects?|personal projects?|academic projects?|selected projects?)\s*[:\-]?\s*$",
+    re.IGNORECASE,
+)
+SECTION_HEADING_RE = re.compile(
+    r"^\s*(?:education|experience|work experience|professional experience|internships?|"
+    r"skills|technical skills|certifications?|achievements?|awards?|leadership|"
+    r"activities|summary|profile|contact)\b",
+    re.IGNORECASE,
+)
+
 __all__ = [
     "answer_similarity",
     "build_roadmap",
@@ -120,19 +132,66 @@ def extract_text(path: str) -> str:
     raise HTTPException(status_code=415, detail="Only PDF and DOCX resumes are supported")
 
 
+def _extract_projects(text: str) -> list[str]:
+    """Extract project entries without truncating at decimal points or periods."""
+    lines = [line.strip(" \t•-–—") for line in text.splitlines()]
+    items: list[str] = []
+    in_projects = False
+
+    for line in lines:
+        if not line:
+            continue
+        if PROJECT_HEADING_RE.match(line):
+            in_projects = True
+            continue
+        if in_projects and SECTION_HEADING_RE.match(line):
+            break
+        if in_projects:
+            items.append(line)
+
+    if not items:
+        for line in lines:
+            if len(line) >= 12 and re.search(r"\b(?:built|developed|created|designed|implemented|launched)\b", line, re.IGNORECASE):
+                items.append(line)
+
+    cleaned: list[str] = []
+    for item in items:
+        item = re.sub(r"^[\-•*]\s*", "", item).strip()
+        if len(item) < 4:
+            continue
+        if item.lower() in {"projects", "personal projects", "academic projects"}:
+            continue
+        cleaned.append(item[:180])
+        if len(cleaned) >= 8:
+            break
+    return cleaned
+
+
 def _parse_resume_regex(raw_text: str) -> dict[str, Any]:
     """Deterministic catalog-matching and regex extraction for resumes."""
     text = re.sub(r"[\t ]+", " ", raw_text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     lower = text.lower()
 
-    skills = sorted({normalize_skill(skill) for skill in KNOWN_SKILLS if re.search(rf"(?<!\w){re.escape(skill)}(?!\w)", lower)})
+    skills = sorted(
+        {
+            normalize_skill(skill)
+            for skill in KNOWN_SKILLS
+            if re.search(rf"(?<!\w){re.escape(skill)}(?!\w)", lower)
+            and normalize_skill(skill) not in GENERIC_SKILL_TOKENS
+        }
+    )
     email = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", text)
-    phone = re.search(r"(?:\+?\d{1,3}[-. ]?)?(?:\(?\d{3}\)?[-. ]?){2}\d{4}", text)
+    phone_source = re.sub(r"[\w.+-]+@[\w-]+\.[\w.-]+", " ", text)
+    phone_source = re.sub(r"https?://\S+|www\.\S+", " ", phone_source)
+    phone = re.search(
+        r"(?<![\w])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)[\s.-]?)?\d{3}[\s.-]?\d{3,4}(?:[\s.-]?\d{4})?(?![\w])",
+        phone_source,
+    )
     cgpa = re.search(r"(?:cgpa|gpa)\s*[:=-]?\s*(\d(?:\.\d{1,2})?)", lower)
     year = re.search(r"(?:graduat(?:ion|ing)|batch|class\s*of)?\s*[:=-]?\s*(20[12]\d)\b", lower)
     experience_years = re.search(r"(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\s+(?:of\s+)?experience", lower)
-    projects = re.findall(r"(?:projects?|built|developed)\s*[:\-]?\s*([^\n.]{4,100})", text, flags=re.I)
+    projects = _extract_projects(text)
     degree_match = re.search(r"\b(B\.?Tech[^\n,]*|M\.?Tech[^\n,]*|BCA|MCA|B\.?Sc|M\.?Sc|Bachelor[^\n,]*|Master[^\n,]*)", text, flags=re.I)
 
     return {
@@ -161,7 +220,7 @@ def parse_resume(raw_text: str) -> dict[str, Any]:
         combined_skills = set(local_parsed.get("skills", []))
         for skill in gemini_parsed.get("skills", []):
             norm = normalize_skill(skill)
-            if norm:
+            if norm and norm not in GENERIC_SKILL_TOKENS:
                 combined_skills.add(norm)
 
         # Merge education
