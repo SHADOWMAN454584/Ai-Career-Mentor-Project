@@ -9,6 +9,7 @@ backend_path = Path(__file__).resolve().parents[1] / "backend"
 if str(backend_path) not in sys.path:
     sys.path.insert(0, str(backend_path))
 
+from app import llm
 from app.main import app
 from app.services.model_loader import placement_model_service
 
@@ -90,7 +91,8 @@ async def test_placement_predict_endpoint():
 
 
 @pytest.mark.anyio
-async def test_mentor_chat_and_stream():
+async def test_mentor_chat_and_stream(monkeypatch):
+    monkeypatch.setattr(llm.settings, "gemini_api_key", None)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         login = await client.post("/auth/login", json={"email": "demo@careermentor.local", "password": "demo123"})

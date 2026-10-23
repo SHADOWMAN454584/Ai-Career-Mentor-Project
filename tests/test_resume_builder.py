@@ -53,7 +53,8 @@ async def _client():
 
 
 @pytest.mark.anyio
-async def test_resume_builder_save_generate_and_pdf(content):
+async def test_resume_builder_save_generate_and_pdf(content, monkeypatch):
+    monkeypatch.setattr(llm.settings, "gemini_api_key", None)
     client, headers = await _client()
     save = await client.put("/resume-builder/draft", json={"title": "Asha Resume", "template": "classic", "content": content}, headers=headers)
     assert save.status_code == 200
