@@ -117,6 +117,25 @@ class ResumeGenerationRequest(BaseModel):
 class ResumeGenerationResponse(BaseModel):
     section: str
     content: str | list[str]
+    project_results: list[str] | None = None
+    warnings: list[str] = Field(default_factory=list)
+    provider: str
+    demo: bool
+
+
+class ResumeSkillSuggestion(BaseModel):
+    skill: str
+    reason: str
+
+
+class ResumeSkillSuggestionRequest(BaseModel):
+    target_role: str = Field(default="", max_length=160)
+    current_skills: list[str] = Field(default_factory=list, max_length=100)
+    job_description: str = Field(default="", max_length=10000)
+
+
+class ResumeSkillSuggestionResponse(BaseModel):
+    suggestions: list[ResumeSkillSuggestion] = Field(default_factory=list)
     provider: str
     demo: bool
 
@@ -227,10 +246,16 @@ class DashboardProgressResponse(BaseModel):
 # Mentor & Chat Domain Schemas
 # ---------------------------------------------------------
 
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant", "mentor"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
 class ChatMessageRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000, description="Student inquiry for AI mentor")
     target_role: str = Field(default="Software Development Engineer")
-    context: str | None = Field(default=None, max_length=1000)
+    context: str | None = Field(default=None, max_length=1000, deprecated=True)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=12)
 
 
 class ChatMessageResponse(BaseModel):
