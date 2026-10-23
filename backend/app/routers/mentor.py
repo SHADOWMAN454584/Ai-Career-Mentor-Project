@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..catalog import ROLES
 from ..database import get_db
-from ..llm import generate_interview, stream_mentor_guidance
+from ..llm import generate_interview, generate_mentor_reply, stream_mentor_guidance
 from ..models import AnalysisResult, CandidateProfile, InterviewSession, User
 from ..rate_limiter import limiter
 from ..schemas import (
@@ -20,8 +20,18 @@ from ..schemas import (
 )
 from ..security import current_user
 from ..services import answer_similarity
+from ..services.mentor_context import build_mentor_context
 
 router = APIRouter(tags=["mentor"])
+
+
+def _validated_role(role: str) -> str:
+    if role not in ROLES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Choose a supported role from the role catalog: {list(ROLES.keys())}",
+        )
+    return role
 
 
 def _latest_result(db: Session, user_id: int) -> AnalysisResult:
@@ -43,21 +53,15 @@ def chat_with_mentor(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> ChatMessageResponse:
-    """Conversational LLM guidance providing targeted advice for students."""
-    role = payload.target_role
-    reply = (
-        f"For your target role as a {role}, prioritizing hands-on execution is essential. "
-        f"Regarding: '{payload.message}', focus on building reproducible evidence in code, "
-        f"measuring outcomes, and practicing technical explanations."
-    )
+    """Conversational LLM guidance grounded in the candidate's resume and analysis."""
+    role = _validated_role(payload.target_role)
+    context = build_mentor_context(db, user, role)
+    history = [turn.model_dump() for turn in payload.history]
+    generated = generate_mentor_reply(payload.message, role, context.text, history)
     return ChatMessageResponse(
-        reply=reply,
-        suggested_actions=[
-            f"Review {role} prerequisite catalog",
-            "Solve a related interview scenario",
-            "Update your GitHub repository with test coverage",
-        ],
-        key_focus=f"Strengthen {role} technical depth",
+        reply=generated.reply,
+        suggested_actions=generated.suggested_actions,
+        key_focus=generated.key_focus,
     )
 
 
@@ -67,13 +71,19 @@ async def stream_mentor_chat(
     request: Request,
     payload: ChatMessageRequest,
     user: User = Depends(current_user),
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
     """Stream real-time AI mentorship guidance via Server-Sent Events (SSE)."""
+    role = _validated_role(payload.target_role)
+    context = build_mentor_context(db, user, role)
+    history = [turn.model_dump() for turn in payload.history]
     return StreamingResponse(
         stream_mentor_guidance(
             query=payload.message,
-            target_role=payload.target_role,
-            context=payload.context or f"User: {user.name}",
+            target_role=role,
+            context=context.text,
+            history=history,
+            resume_context_used=context.resume_used or context.analysis_used,
         ),
         media_type="text/event-stream",
         headers={

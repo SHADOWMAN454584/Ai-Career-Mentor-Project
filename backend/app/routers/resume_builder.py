@@ -2,15 +2,24 @@
 from datetime import datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..catalog import ROLES
 from ..database import get_db
-from ..llm import generate_resume_content
+from ..llm import generate_resume_content, generate_skill_suggestions
 from ..models import ResumeDraft, User
-from ..schemas import ResumeDraftResponse, ResumeDraftSaveRequest, ResumeGenerationRequest, ResumeGenerationResponse
+from ..rate_limiter import limiter
+from ..schemas import (
+    ResumeDraftResponse,
+    ResumeDraftSaveRequest,
+    ResumeGenerationRequest,
+    ResumeGenerationResponse,
+    ResumeSkillSuggestionRequest,
+    ResumeSkillSuggestionResponse,
+)
 from ..security import current_user
 from ..services.resume_builder import build_resume_pdf
 
@@ -44,9 +53,38 @@ def save_draft(payload: ResumeDraftSaveRequest, user: User = Depends(current_use
 
 
 @router.post("/generate", response_model=ResumeGenerationResponse)
-def generate_section(payload: ResumeGenerationRequest, user: User = Depends(current_user)) -> ResumeGenerationResponse:
+@limiter.limit("15/minute")
+def generate_section(
+    request: Request,
+    payload: ResumeGenerationRequest,
+    user: User = Depends(current_user),
+) -> ResumeGenerationResponse:
     generated = generate_resume_content(payload.section, payload.content, payload.target_role, payload.job_description)
-    return ResumeGenerationResponse(section=payload.section, content=generated.content, provider=generated.provider, demo=generated.demo)
+    return ResumeGenerationResponse(
+        section=payload.section,
+        content=generated.content,
+        project_results=generated.project_results,
+        warnings=generated.warnings,
+        provider=generated.provider,
+        demo=generated.demo,
+    )
+
+
+@router.post("/suggest-skills", response_model=ResumeSkillSuggestionResponse)
+@limiter.limit("15/minute")
+def suggest_skills(
+    request: Request,
+    payload: ResumeSkillSuggestionRequest,
+    user: User = Depends(current_user),
+) -> ResumeSkillSuggestionResponse:
+    if payload.target_role not in ROLES:
+        raise HTTPException(status_code=422, detail="Choose a supported target role before requesting skill suggestions.")
+    generated = generate_skill_suggestions(payload.target_role, payload.current_skills, payload.job_description)
+    return ResumeSkillSuggestionResponse(
+        suggestions=generated.suggestions,
+        provider=generated.provider,
+        demo=generated.demo,
+    )
 
 
 @router.post("/pdf")
